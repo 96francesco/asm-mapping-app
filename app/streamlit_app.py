@@ -1,18 +1,10 @@
 import streamlit as st
-import geemap.foliumap as geemap
+import folium
 
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 from folium.plugins import Draw
+from datetime import date
 
-def map_with_marker():
-      """
-      Handle the map and marker
-      """
-      m = geemap.Map(center=[-6.369028, 34.888822], zoom=6)
-      draw = Draw(export=True)
-      draw.add_to(m)
-      folium_static(m)
-      return m
 
 def user_input_options():
       """
@@ -25,40 +17,59 @@ def user_input_options():
       
       image_type = st.radio(
             "Choose the type of image:",
-            ('Composite', 'Latest')
+            ('Median composite', 'Latest')
       )
       return model_option, image_type
 
 # main function to manage the app
 def main():
-      st.set_page_config(page_title="Satellite Imagery Segmentation", layout="wide")
-      st.title("Satellite Imagery Segmentation")
+      st.set_page_config(page_title="ASM detection", layout="wide")
+      st.title("Artisanal and Small-scale Mining (ASM) detection in the DRC")
 
       # get user inputs
       model_option, image_type = user_input_options()
+      
+      # get date range
+      if image_type == 'Median composite':
+            min_date = date(2020, 9, 1)
+            max_date = date.today()
+            start_date = st.date_input("Select start date:", min_value=min_date, max_value=max_date, value=min_date)
+            end_date = st.date_input("Select end date:", min_value=min_date, max_value=max_date, value=max_date)
+      else:
+            # TODO: understand how to handle the last image case
+            pass
+
 
       # display map and get marker
-      draw_control = map_with_marker()
+      # draw_control = map_with_marker()
+      st.markdown('#### Draw a marker in the area of the map where you want to detect ASM areas and click the RUN button below.')
+      st.markdown('###### Note: at the moment, only the DRC area is supported.')
+      
+      m = folium.Map(location=[-4.0383, 21.7587], zoom_start=5)
+      tile = folium.TileLayer(
+        tiles = 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attr = 'Esri',
+        name = 'Esri Satellite',
+        overlay = True,
+        control = True
+       ).add_to(m)
+
+      tile = folium.TileLayer(
+            tiles = 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+            attr = 'Esri',
+            name = 'Esri Satellite',
+            overlay = True,
+            control = True
+            ).add_to(m)
+      
+      Draw(export = False, draw_options = {'polyline' : False, 'polygon': False, 'rectangle' : False, 'circle' : False, 'circlemarker' : False}).add_to(m)
+      map = st_folium(m, width = 700, height = 500, returned_objects=['marker'])
 
       # RUN button to process the selected area and display the results
       if st.button("RUN"):
-            # extract coordinates from the draw object here
-            # PLACEHOLDER coordinates = extract_coordinates(draw_control)
-            coordinates = [-6.369028, 34.888822]  
 
-            # PLACEHOLDER prediction = perform_prediction(model_option, image_type, coordinates)
-
-            # PLACEHOLDER tif_bytes = convert_to_tif(prediction)
-            tif_bytes = b"TIFF_placeholder"  # Placeholder bytes
-
-            # use download button to download the prediction result
-            st.download_button(label="Download Prediction as TIFF",
-                              data=tif_bytes,
-                              file_name="prediction.tif",
-                              mime="image/tiff")
-
-            # display the prediction result below the map (placeholder)
-            st.image(tif_bytes, caption='Prediction', use_column_width=True)
+            with st.spinner('Collecting satellite imagery and searching for ASM sites with '+model_option+' model...'):
+                  coordinates = list(map['marker']['geometry']['coordinates'])
 
 # run
 if __name__ == "__main__":
